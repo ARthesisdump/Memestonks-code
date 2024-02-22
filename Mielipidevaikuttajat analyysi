@@ -1,0 +1,215 @@
+#ladataan tarvittavat paketit
+library(tidyverse)
+library(readr)
+
+
+#Importataan csv. muotoinen data tietokoneelta. Kommentit ja julkaisut erikseen ja käyttäjädatat molemmista erikseen.
+#Huom älä importtaa kaikkea! Vain mitä tarvitset 
+
+submissions<-read_csv("C:/Users/akmira/Desktop/Memestonks/Data/Final data/meme_submissions.csv")
+
+comments<-read_csv("C:/Users/akmira/Desktop/Memestonks/Data/Final data/meme_comments.csv")
+
+sub_author_data<-read_csv("C:/Users/akmira/Desktop/Memestonks/Data/Final data/meme_submission_authors.csv")
+
+com_author_data<-read_csv("C:/Users/akmira/Desktop//Memestonks/Data/Final data/meme_comment_authors.csv")
+
+Reddittor<-read_csv("C:/Users/Aki/Desktop/Gradu/Memestonks projekti/Data/Final data/redditors.csv")
+
+
+#Rajataan koskemaan vain lokakuu - tammikuu aikaa datassa helmikuussa tapahtuvan muutoksen vuoksi
+
+submissions$created <- as.Date(submissions$created)
+
+submissions <- submissions %>%
+  filter(created >= as.Date("2022-10-11") & created <= as.Date("2023-01-31"))
+
+
+comments$created <- as.Date(comments$created)
+
+comments <- comments %>%
+  filter(created >= as.Date("2022-10-11") & created <= as.Date("2023-01-31"))
+
+
+#datan joukossa paljon poistettuja käyttäjiä ja julkaisuja, sekä botteja. Poistetaan näitä.
+
+sub_author_data <- subset(sub_author_data, id != "[deleted]")
+sub_author_data <- subset(sub_author_data, name != "AutoModerator")
+sub_author_data <- subset(sub_author_data, name != "VisualMod")
+
+com_author_data <- subset(com_author_data, id != "[deleted]")
+com_author_data <- subset(com_author_data, name != "AutoModerator")
+com_author_data <- subset(com_author_data, name != "VisualMod")
+
+comments <- subset(comments,body!="[removed]")
+comments <- subset(comments,author!="AutoModerator")
+comments <- subset(comments,author!="VisualMod")
+comments <- subset(comments,author!="[deleted]")
+
+
+submissions <- subset(submissions,selftext !="[removed]")
+submissions <- subset(submissions,author !="AutoModerator")
+submissions <- subset(submissions,author !="VisualMod")
+submissions <- subset(submissions,author !="[deleted]")
+submissions <- subset(submissions,author !="OPINION_IS_UNPOPULAR")
+
+
+#Okei näyttää ihan hyvältä.
+
+
+
+#poistetaan vielä meemilangat ja niiden kommentit flairien avulla
+
+# Tallennetaan meme flairattujen julkaisuiden id
+
+meme_ids <- submissions$id[!is.na(submissions$flair) & submissions$flair == "Meme"]
+
+shitpost_ids <- submissions$id[!is.na(submissions$flair) & submissions$flair == "Shitpost"]
+
+
+# Filtteröidään pois id perusteella kommentit meme julkaisuihin
+
+comments <- subset(comments, !(submission_id %in% meme_ids))
+
+comments <- subset(comments, !(submission_id %in% shitpost_ids))
+
+#poistetaan meme flairatut julkaisut
+submissions <- subset(submissions, flair != "Meme" | is.na(flair))
+submissions <- subset(submissions, flair != "Shitpost" | is.na(flair))
+
+
+
+#Yhdistetään sub_author_datasta ja com_author_datasta käyttäjien id kommentti ja submission dataan
+
+merged_sub <- merge(submissions, sub_author_data, by.x = "author", by.y = "name", all.x = TRUE)
+
+merged_com <- merge(comments, com_author_data, by.x = "author", by.y = "name", all.x = TRUE)
+
+#Lasketaan julkaisuiden ja kommenttien määrät per julkaisija
+
+submission_count <- merged_sub %>%
+  group_by(id.y) %>%
+  summarize(submissions = n())
+
+
+comment_count <- merged_com %>%
+  group_by(id.y) %>%
+  summarize(comments = n())
+
+
+
+
+#Tehdään omat dataframet eniten julkaisevalle ja kommentoivalle 10 prosentille
+
+
+
+top10_posters <- submission_count[order(submission_count$submissions, decreasing = TRUE), ]
+top10_posters <- top10_posters[1:294, ] 
+
+
+top10_commenters <- comment_count[order(comment_count$comments, decreasing = TRUE), ]
+top10_commenters <- top10_commenters[1:17119, ]
+
+
+#paljon osumia, otetaan kommenttien osalta top 1%
+
+
+
+top1_commenters <- comment_count[order(comment_count$comments, decreasing = TRUE), ]
+top1_commenters <- top1_commenters[1:1712, ]
+
+
+
+
+#--------Tehdään vastaavat, mutta sille ketkä saavat eniten huomiota-----
+
+
+#Lasketaan keskimääräiset kommenttien ja äänten määrät per julkaisija submissions datasta
+
+
+sub_auth_com <- merged_sub %>%
+  filter(complete.cases(num_comments)) %>%
+  group_by(id.y) %>%
+  summarize(comments = mean(num_comments))
+
+sub_auth_ups<-merged_sub %>%
+  filter(complete.cases(score)) %>%  
+  group_by(id.y) %>%
+  summarize(upvotes = mean(score))
+
+merged_means <- merge(sub_auth_com, sub_auth_ups, by = "id.y", all.x = TRUE)
+                      
+
+
+#ja sitten vielä kommenttien saamille äänille
+
+
+com_auth_ups<-merged_com %>%
+  filter(complete.cases(score)) %>%  
+  group_by(id.y) %>%
+  summarize(upvotes = mean(score))
+
+
+#Nyt näistä tehdään top 10% listat. Eli top 10% postaajista ja kommentoijista, saatujen äänten ja kommenntien mukaan.
+
+top10_sub_ups <- sub_auth_ups[order(sub_auth_ups$upvotes, decreasing = TRUE), ]
+top10_sub_ups <- top10_sub_ups[1:294, ] 
+
+
+top10_sub_com <- sub_auth_com[order(sub_auth_com$comments, decreasing = TRUE), ]
+top10_sub_com <- top10_sub_com[1:294, ]
+
+
+
+#Kommenttien osalta paljon havaintoja, tehdään siitä top 1%
+
+
+top1_com_ups <- com_auth_ups[order(com_auth_ups$upvotes, decreasing = TRUE), ]
+top1_com_ups <- top1_com_ups[1:1712, ] 
+
+
+
+#Noniin ja nyt näiden listojen perusteella voidaan alkaa etsiä mielipidevaikuttajia.
+#Eli vertaamalla listoja, etsitään käyttäjät, jotka julkaisevat paljon JA saavat paljon huomiota
+#Eli seuraavissa on yhdistetty käyttäjät, jotka ovat top 10% julkaisijoita tai kommentoijia ja top 10% (top 1%) saatujen äänten ja kommenttien keskiarvossa.
+
+Top10_merge_post_com <- merge(top10_posters, top10_sub_com, by = "id.y")
+
+Top10_merge_post_ups <- merge(top10_posters, top10_sub_ups, by = "id.y") 
+
+Top10_merge_com_ups <- merge(top10_commenters, top10_com_ups, by = "id.y")
+
+Top1_merge_com_ups <- merge(top1_commenters, top1_com_ups, by = "id.y")
+
+Topmix_merge_com_ups <- merge(top10_commenters, top1_com_ups, by = "id.y") #KÄYTÄ TÄTÄ! Top 10 aktiivisuus top 1% huomio
+
+
+#Ketkä kuuluvat kaikkiin näihin? Yhdistä
+
+Top10_kaikkiups <- merge(Top10_merge_post_ups, Top10_merge_com_ups, by = "id.y")
+
+Top10_kaikki <- merge(Top10_kaikkiups, Top10_merge_post_com, by="id.y")
+
+Top10_kaikkipost <- merge(Top10_merge_post_com, Top10_merge_post_ups, by="id.y", all=TRUE)
+
+
+#yhdistetään vielä top10_kaikkipost ja merged_means niin, että saadaan listaan sekä kommentit, että upsit kaikille
+
+options(scipen = 999)
+
+merge_kaikkipost <- merge(Top10_kaikkipost, merged_means, by="id.y", all.x = TRUE)
+
+
+#Noniin, nyt on listoja käyttäjistä, joiden voidaan argumentoida olevan mielipidevaikuttajia
+#Voi vielä tehdä muutakin vertailua ristiin listojen välillä, jos haluaa
+#kommenttien osalta lista on aika suuri. Ehkä siihe voisi ottaa top1%? 
+
+#Tulostetaan exceliin
+
+library(openxlsx)
+
+write.xlsx(merge_kaikkipost, "C:/Users/Aki/Desktop/Gradu/Memestonks projekti/Analyysi", sheetName = "Sheet1", rowNames = FALSE)
+
+write.xlsx(Topmix_merge_com_ups, "C:/Users/Aki/Desktop/Gradu/Memestonks projekti/Analyysi", sheetName = "Sheet1", rowNames = FALSE)
+
+
