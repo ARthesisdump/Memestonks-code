@@ -1,0 +1,204 @@
+#Reddit datan analysointi
+install.packages("poweRlaw")
+
+install.packages("tidyverse")
+
+#ladataan tarvittavat paketit
+library(tidyverse)
+library(readr)
+library(poweRlaw)
+library(car)
+
+
+#Importataan tarvittava data tietokoneelta. Kommentit ja julkaisut erikseen ja käyttäjädatat molemmista erikseen.
+
+submissions<-read_csv("C:/Users/akmira/Desktop/Memestonks/Data/Final data/meme_submissions.csv")
+
+comments<-read_csv("C:/Users/akmira/Desktop/Memestonks/Data/Final data/meme_comments.csv")
+
+
+sub_author_data<-read_csv("C:/Users/akmira/Desktop/Memestonks/Data/Final data/meme_submission_authors.csv")
+
+com_author_data<-read_csv("C:/Users/akmira/Desktop/Memestonks/Data/Final data/meme_comment_authors.csv")
+
+keskeisyys <- read_csv("C:/Users/akmira/Desktop/Memestonks/Data/centrality.csv")
+
+
+#Rajataan koskemaan vain lokakuu - tammikuu aikaa datassa helmikuussa tapahtuvan muutoksen vuoksi
+
+submissions$created <- as.Date(submissions$created)
+
+submissions <- submissions %>%
+  filter(created >= as.Date("2022-10-11") & created <= as.Date("2023-01-31"))
+
+
+comments$created <- as.Date(comments$created)
+
+comments <- comments %>%
+  filter(created >= as.Date("2022-10-11") & created <= as.Date("2023-01-31"))
+
+
+#datan joukossa paljon poistettuja käyttäjiä ja julkaisuja, sekä botteja. Poistetaan näitä.
+
+sub_author_data <- subset(sub_author_data, name != "[deleted]")
+sub_author_data <- subset(sub_author_data, name != "AutoModerator")
+sub_author_data <- subset(sub_author_data, name != "VisualMod")
+sub_author_data <- subset(sub_author_data, name != "OPINION_IS_UNPOPULAR")
+
+
+submissions <- subset(submissions,selftext !="[removed]")
+submissions <- subset(submissions,author !="AutoModerator")
+submissions <- subset(submissions,author !="VisualMod")
+submissions <- subset(submissions,author !="[deleted]")
+submissions <- subset(submissions,author !="OPINION_IS_UNPOPULAR")
+
+
+
+#Okei näyttää ihan hyvältä.
+
+
+#yhdistetään datasetit analyysiä varten
+
+
+merged_data <- merge(submissions, sub_author_data, by.x = "author", by.y = "name", all.x = TRUE)
+
+#lisätään keskeisyysasteet
+
+cleaned_data <- merge(merged_data, keskeisyys, by.x = "author", by.y = "Label", all.x = TRUE)
+
+
+
+
+#Tuodaan mukaan trophyt
+
+author_trophies<-read_csv("C:/Users/akmira/Desktop//Memestonks/Data/Final data/meme_submission_author_trophies.csv")
+
+#lasketaan trophyjen määrä per henkilö
+
+trophy_count <- author_trophies %>%
+  group_by(redditor_id) %>%
+  summarize(trophy_id = n())
+
+#yhdistetään datasetit analyysiä varten
+
+
+cleaned_data <- merge(cleaned_data, trophy_count, by.x = "id.y", by.y = "redditor_id", all.x = TRUE)
+
+#Lisätään trophy muuttujaan puuttuvien tilalle nolla ja muutetaan sen nimi paremmaksi
+
+cleaned_data <- cleaned_data %>%
+  mutate(trophies = ifelse(is.na(trophy_id), 0, trophy_id))%>%
+  select(-trophy_id)
+
+
+
+
+#Testataan logaritmimuunnettuna
+
+#Tehdään logaritmimuunnos, huomioidaan negatiiviset arvot
+#Pudotetaan negatiiviset arvot pois aineistosta. Jos aiheuttaa ongelmia regressioanalyysissa, voisi muuttaa negatiiviset nollaksi?
+
+
+cleaned_data <- cleaned_data %>%
+  filter(!is.na(total_karma) & total_karma >= 0 &
+           !is.na(score) & score >= 0 &
+           !is.na(num_comments) & num_comments >= 0 &
+           !is.na (indegree) & indegree >= 0) %>%
+  mutate(
+    log_total_karma = log(total_karma + 1),  
+    log_ups = log(score + 1),
+    log_num_comments = log(num_comments + 1),
+    log_indegree = log(indegree + 1)
+  )
+
+
+
+
+#lasketaan trophyjen määrän ja huomion väliset korrelaatiot ja tehdään hajontakuviot
+
+
+spearman_cor_com_trphy <- cor(cleaned_data2$num_comments, cleaned_data2$trophies, method="spearman", use ="complete.obs")
+spearman_cor_ups_trphy <- cor(cleaned_data2$score, cleaned_data2$trophies, method="spearman", use ="complete.obs")
+spearman_cor_karma_trphy <- cor(cleaned_data2$total_karma, cleaned_data2$trophies, method="spearman", use ="complete.obs")
+
+
+
+#-----------Analysoidaan karman yhteyttä julkaisuiden saamien kommenttien määrään---------
+
+#Tarkastellaan karman jakaumaa
+
+hist(merged_data$total_karma)
+
+hist(merged_data$num_comments)
+
+
+#lasketaan korrelaatio ja tehdään hajontakuvio
+
+
+spearman_corr_ups <-  cor(merged_data$total_karma, merged_data$score, method="spearman", use ="complete.obs")
+
+spearman_corr_com <-  cor(merged_data$total_karma, merged_data$num_comments, method="spearman", use ="complete.obs")
+
+spearman_ups_com <-  cor(merged_data$score, merged_data$num_comments, method="spearman", use ="complete.obs")
+
+spearman_corr_degree1 <-  cor(cleaned_data3$indegree, cleaned_data3$score, method="spearman", use ="complete.obs")
+
+spearman_corr_degree2 <-  cor(cleaned_data3$indegree, cleaned_data3$num_comments, method="spearman", use ="complete.obs")
+
+spearman_corr_degree3 <-  cor(cleaned_data3$indegree, cleaned_data3$total_karma, method="spearman", use ="complete.obs")
+
+spearman_corr_degree4 <-  cor(cleaned_data3$indegree, cleaned_data3$trophies, method="spearman", use ="complete.obs")
+
+
+ggplot(cleaned_data, aes(x = trophies, y = log_ups)) +
+  geom_point() +
+  labs(x = "trophies", y = "ups") +
+  ggtitle("Scatterplot: Trophies vs. ups")
+
+
+ggplot(cleaned_data, aes(x = trophies, y = log_num_comments)) +
+  geom_point() +
+  labs(x = "Trophies", y = "Comments") +
+  ggtitle("Scatterplot: Trophies vs. Comments")
+
+
+
+
+ggplot(merged_data, aes(x = total_karma, y = score)) +
+  geom_point() +
+  labs(x = "Karma", y = "Upvotes") 
+
+ggplot(merged_data, aes(x = total_karma, y = num_comments)) +
+  geom_point() +
+  labs(x = "Karma", y = "Comments") 
+
+
+ggplot(merged_data, aes(x = score, y = num_comments)) +
+  geom_point() +
+  labs(x = "ups", y = "Comments") 
+
+
+ggplot(submissions, aes(x = upvote_ratio, y = num_comments)) +
+  scale_y_continuous(labels = scales::comma, limits = c(0, 500))+
+  geom_point() +
+  labs(x = "uvr", y = "Comments") 
+
+
+ggplot(submissions, aes(x = upvote_ratio, y = score)) +
+  scale_y_continuous(labels = scales::comma, limits = c(0, 500))+
+  geom_point() +
+  labs(x = "uvr", y = "ups") 
+
+
+ggplot(submissions, aes(x = upvote_ratio, y = num_comments)) +
+  scale_y_continuous(labels = scales::comma, limits = c(0, 500)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE) +  # Add linear trend line without confidence interval
+  labs(x = "upvote ratio", y = "comments")
+
+
+
+spearman_corr_upr2 <-  cor(submissions$upvote_ratio, submissions$num_comments, method="spearman", use ="complete.obs")
+
+corr_upr2 <-  cor(submissions$num_comments, submissions$upvote_ratio, use ="complete.obs")
+
