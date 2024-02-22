@@ -8,7 +8,7 @@ library(readr)
 
 #Importataan csv. muotoinen data tietokoneelta. Kommentit ja julkaisut erikseen ja käyttäjädatat molemmista erikseen.
 
-submissions<-read_csv("C:/Users/akmira/Desktop/Gradu/Memestonks projekti/Data/Final data/meme_submissions.csv")
+submissions<-read_csv("C:/Users//Desktop/Gradu/Memestonks projekti/Data/Final data/meme_submissions.csv")
 
 
 #Rajataan koskemaan vain lokakuu - tammikuu aikaa datassa helmikuussa tapahtuvan muutoksen vuoksi
@@ -27,7 +27,6 @@ submissions <- subset(submissions,author !="VisualMod")
 submissions <- subset(submissions,author !="[deleted]")
 submissions <- subset(submissions,author !="OPINION_IS_UNPOPULAR")
 
-submissions <- subset(submissions,id !="1035100")
 
 
 #Lasketaan julkaisut per flairi
