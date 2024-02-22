@@ -1,0 +1,461 @@
+#Reddit datan analysointi
+
+#ladataan tarvittavat paketit
+library(tidyverse)
+library(readr)
+
+
+
+#Importataan csv. muotoinen data tietokoneelta. Kommentit ja julkaisut erikseen ja käyttäjädatat molemmista erikseen.
+
+submissions<-read_csv("C:/Users/Desktop/Gradu/Memestonks projekti/Data/Final data/meme_submissions.csv")
+
+comments<-read_csv("C:/Users//Desktop/Gradu/Memestonks projekti/Data/Final data/meme_comments.csv")
+
+sub_author_data<-read_csv("C:/Users//Desktop/Gradu/Memestonks projekti/Data/Final data/meme_submission_authors.csv")
+
+com_author_data<-read_csv("C:/Users//Desktop/Gradu/Memestonks projekti/Data/Final data/meme_comment_authors.csv")
+
+Reddittor<-read_csv("C:/Users//Desktop/Gradu/Memestonks projekti/Data/Final data/redditors.csv")
+
+
+#Rajataan koskemaan vain lokakuu - tammikuu aikaa datassa helmikuussa tapahtuvan muutoksen vuoksi
+
+submissions$created <- as.Date(submissions$created)
+
+submissions <- submissions %>%
+  filter(created >= as.Date("2022-10-11") & created <= as.Date("2023-01-31"))
+
+
+comments$created <- as.Date(comments$created)
+
+comments <- comments %>%
+  filter(created >= as.Date("2022-10-11") & created <= as.Date("2023-01-31"))
+
+
+#datan joukossa paljon poistettuja käyttäjiä ja julkaisuja, sekä botteja. Poistetaan näitä.
+
+sub_author_data <- subset(sub_author_data, id != "[deleted]")
+sub_author_data <- subset(sub_author_data, name != "AutoModerator")
+sub_author_data <- subset(sub_author_data, name != "VisualMod")
+
+com_author_data <- subset(com_author_data, id != "[deleted]")
+com_author_data <- subset(com_author_data, name != "AutoModerator")
+com_author_data <- subset(com_author_data, name != "VisualMod")
+
+
+comments <- subset(comments,body!="[removed]")
+comments <- subset(comments,author!="AutoModerator")
+comments <- subset(comments,author!="VisualMod")
+comments <- subset(comments,author!="[deleted]")
+
+
+submissions <- subset(submissions,selftext !="[removed]")
+submissions <- subset(submissions,author !="AutoModerator")
+submissions <- subset(submissions,author !="VisualMod")
+submissions <- subset(submissions,author !="[deleted]")
+submissions <- subset(submissions,author !="OPINION_IS_UNPOPULAR")
+
+
+#Okei näyttää ihan hyvältä.
+
+
+
+
+#--------------ANALYSOIDAAN ENSIN JULKAISUIDEN JAKAUMAA------------
+
+#Lasketaan julkaisuiden määrät per julkaisija submissions datasta
+
+submission_count <- submissions %>%
+  group_by(author) %>%
+  summarize(submissions = n())
+
+
+
+#lasketaan julkaisuille vielä keskiarvo, mediaani ja 90% desiili
+
+mean(submission_count$submissions)
+median(submission_count$submissions)
+percentile90<-quantile(submission_count$submissions, 0.9)
+sum(submission_count$submissions)
+sd(submission_count$submissions)
+
+#lasketaan paljon postauksia korkein 10% on tehnyt
+sum(submission_count$submissions[submission_count$submissions >= percentile90])
+#2263 postausta, eli noin 48% postauksista
+
+
+#Visualisoidaan julkaisujen jakaumaa
+
+ggplot(data = submission_count, aes(x = submissions)) +
+  geom_bar(fill = "steelblue", color = "black") +  
+  scale_x_continuous(breaks = seq(0, max(submission_count$submissions), by = 10)) +  
+  scale_y_continuous(labels = scales::comma, limits = c(0, 2500))+
+  labs(x = "Number of Posts", y = "Count") 
+
+
+
+#tehdään vielä logaritmimuunnos niin saadaan paremmin tulkittava kuva
+
+
+ggplot(data = submission_count, aes(x = submissions)) +
+  geom_bar(fill = "steelblue", color = "black") +
+  scale_x_continuous(breaks = seq(0, max(submission_count$submissions), by = 10)) +
+  scale_y_continuous(labels = scales::comma, trans = "log10") +
+  labs(x = "Number of Posts", y = "Count (log scale)")
+
+
+#log log
+
+ggplot(data = submission_count, aes(x = submissions)) +
+  geom_bar(fill = "steelblue", color = "black") +
+  scale_x_continuous(labels = scales::comma, trans = "log10") +
+  scale_y_continuous(labels = scales::comma, trans = "log10") +
+  labs(x = "Number of Posts", y = "Count (log scale)")
+
+
+ggplot(submission_count, aes(x = submissions)) +
+ stat_count() +
+  scale_x_log10() +  # Set x-axis to log scale
+  scale_y_log10() +  # Set y-axis to log scale
+  labs(x = "Number of Submissions (log scale)", y = "Number of Users (log scale)") +
+  ggtitle("Distribution of User Submissions")
+
+
+#Kuten oletettiin, suurin osa julkaisijoista on julkaissut vain vähän. Vain muutamalla käyttäjällä yli paljon julkaisuja.
+#Tarkastellaan seuraavaksi samaa kommenttien osalta.
+
+
+
+#----------KOMMENTTIEN jakauman analyysi--------------
+
+
+comment_count <- comments %>%
+  group_by(author) %>%
+  summarize(comments = n())
+
+#jälleen on poistettuja joukossa, poistetaan nämä datasta (eipä tainnu ollakkaan)
+
+comment_count <- subset(comment_count, author != "[deleted]")
+
+
+
+#lasketaan kommenteille  keskiarvo, mediaani ja 90% desiili
+
+mean(comment_count$comments)
+median(comment_count$comments)
+percentile90_com<-quantile(comment_count$comments, 0.9)
+sum(comment_count$comments)
+sd(comment_count$comments)
+
+#lasketaan paljon postauksia korkein 10% on tehnyt
+sum(comment_count$comments[comment_count$comments >= percentile90_com])
+#876196 eli noin 76% kommenteista
+
+
+
+#Visualisoidaan kommenttien jakauma
+
+
+  
+  ggplot(data = comment_count, aes(x = comments)) +
+    geom_bar(fill = "steelblue", color = "black") +  
+    scale_x_continuous(breaks = seq(0, max(comment_count$comments), by = 200)) +  
+    scale_y_continuous(labels = scales::comma, limits = c(0, 3500)) +  
+    labs(x = "Number of Comments", y = "Count")
+  
+
+
+#Aivan järkyttävää, tarvitsee ehdottomasti logaritmimuunnoksen
+
+
+
+  ggplot(data = comment_count, aes(x = comments)) +
+    geom_bar(fill = "steelblue", color = "black") +
+    scale_x_continuous(breaks = seq(0, max(comment_count$comments), by = 200)) +
+    scale_y_continuous(labels = scales::comma, trans = "log10") +
+    labs(x = "Number of Comments", y = "Count (log scale)")
+
+  #ja log log
+  
+  ggplot(data = comment_count, aes(x = comments)) +
+    geom_bar(fill = "steelblue", color = "black") +
+    scale_x_continuous(labels = scales::comma, trans = "log10") +
+    scale_y_continuous(labels = scales::comma, trans = "log10") +
+    labs(x = "Number of comments (log scale)", y = "Count (log scale)")
+  
+  
+ 
+  
+  #-------------SEURAAVAKSI TARKASTELLAAN JULKAISUIDEN JA KOMMENTTIEN SAAMAN HUOMION JAKAUTUMISTA per julkaisu/kommentti-----------------
+  
+  
+  #Aloitetaan julkaisuista
+  
+  #Poistetaan ensin havainnot, joiden score ja kommenttien määrästä ei ole dataa
+  #Muista poistaa daily discussion threadit jos lähdet tästä kohtaa liikkeelle!
+  
+  
+  submissions <- subset(submissions,score !="NA") #ei poistunut yhtään
+
+  
+  #lasketaan julkaisuiden saamille äänille keskiarvo, mediaani, 90% desiili ja keskihajonta
+  #HUOM! Käytetään ups sijasta score, koska syyt
+  
+  mean(submissions$score)
+  median(submissions$score)
+  perc90_sub_ups<-quantile(submissions$score, 0.9)
+  sd(submissions$score)
+
+  #lasketaan kuinka suuren osan äänistä korkein 10% on saanut
+  sum(submissions$score)
+  sum(submissions$score[submissions$score >= perc90_sub_ups])
+  #eli  96% äänistä
+  
+  
+  #Visualisoidaan äänten jakauma
+  
+  
+  ggplot(data = submissions, aes(x = score)) +
+    geom_bar(fill = "steelblue", color = "black") +  
+    scale_x_continuous(breaks = seq(0, max(submissions$score), by = 5000)) +  
+    scale_y_continuous(labels = scales::comma) +  
+    labs(x = "Number of Votes", y = "Count")
+  
+  
+  
+  #Tehdään logaritmimuunnos
+  
+  
+  ggplot(data = submissions, aes(x = score)) +
+    geom_bar(fill = "steelblue", color = "black") +
+    scale_x_continuous(breaks = seq(0, max(submissions$score), by = 5000)) +
+    scale_y_continuous(labels = scales::comma, trans = "log10") +
+    labs(x = "Number of Votes", y = "Count (log scale)")
+  
+  
+  #log log
+  
+  ggplot(data = submissions, aes(x = score)) +
+    geom_bar(fill = "steelblue", color = "black") +
+    scale_x_continuous(labels = scales::comma, trans = "log10") +
+    scale_y_continuous(labels = scales::comma, trans = "log10") +
+    labs(x = "Number of ups (log scale)", y = "Count (log scale)")
+  
+  
+  
+  
+#Tarkastellaan seuraavaksi julkaisuiden saamien kommenttien jakaumaa
+#Ladataan ja siistitään data ensin uusiksi, koska äskeistä analyysiä varten poistettiin havaintoja
+  
+ #poistetaan puutteelliset kommenttitiedot
+  
+   submissions <- subset(submissions,num_comments !="NA")
+  
+    #lasketaan julkaisuiden saamille kommenteille keskiarvo, mediaani, 90% desiili ja keskihajonta
+ 
+   mean(submissions$num_comments)
+  median(submissions$num_comments)
+  perc90_sub_com<-quantile(submissions$num_comments, 0.9)
+  sd(submissions$num_comments)
+  
+  #lasketaan kuinka suuren osan kommenteista korkein 10% on saanut
+  sum(submissions$num_comments)
+  sum(submissions$num_comments[submissions$num_comments >= perc90_sub_com])
+  #68% kommenteista
+  
+  
+  #Visualisoidaan kommenttien jakauma
+  
+  
+  ggplot(data = submissions, aes(x = num_comments)) +
+    geom_bar(fill = "steelblue", color = "black") +  
+    scale_x_continuous(breaks = seq(0, max(submissions$num_comments), by = 1000)) +  
+    scale_y_continuous(labels = scales::comma) +  
+    labs(x = "Number of Comments", y = "Count")
+  
+  
+  #Tehdään logaritmimuunnos
+  
+  
+  ggplot(data = submissions, aes(x = num_comments)) +
+    geom_bar(fill = "steelblue", color = "black") +
+    scale_x_continuous(breaks = seq(0, max(submissions$num_comments), by = 1000)) +
+    scale_y_continuous(labels = scales::comma, trans = "log10") +
+    labs(x = "Number of Comments", y = "Count (log scale)")
+  
+  
+  # -------SEURAAVAKSI tarkastellaan kommenttien saamaa huomiota-------
+  
+  
+  #lasketaan kommenttien saamille äänille keskiarvo, mediaani, 90% desiili ja keskihajonta
+  
+  mean(comments$score)
+  median(comments$score)
+  perc90_com_ups<-quantile(comments$score, 0.9)
+  sd(comments$score)
+  
+  
+  #lasketaan kuinka suuren osan äänistä  korkein 10% kommenteista on saanut
+  #tätä varten pitää poistaa negatiiviset äänet, koska suhdelukua ei voi laskea jos negatiivisia mukana
+  
+  comups<-subset(comments, score>=0 )
+  
+  sum(comups$score)
+  sum(comups$score[comups$score >= perc90_com_ups])
+  #78,8% äänistä
+  
+  
+  #Visualisoidaan äänten jakauma
+  
+  
+  ggplot(data = comments, aes(x = score)) +
+    geom_bar(fill = "steelblue", color = "black") +  
+    scale_x_continuous(breaks = seq(0, max(comments$score), by = 2000)) +  
+    scale_y_continuous(labels = scales::comma) +  
+    labs(x = "Number of Votes", y = "Count")
+  
+  
+  #Tehdään logaritmimuunnos
+  
+  
+  ggplot(data = comups, aes(x = score)) +
+    geom_bar(fill = "steelblue", color = "black") +
+    scale_x_continuous(breaks = seq(0, max(comments$ups), by = 2000)) +
+    scale_y_continuous(labels = scales::comma, trans = "log10") +
+    labs(x = "Number of Votes", y = "Count (log scale)")
+  
+  
+  #log log
+  
+  ggplot(data = comups, aes(x = score)) +
+    geom_bar(fill = "steelblue", color = "black") +
+    scale_x_continuous(labels = scales::comma, trans = "log10") +
+    scale_y_continuous(labels = scales::comma, trans = "log10") +
+    labs(x = "Number of ups (log scale)", y = "Count (log scale)")
+  
+  
+  
+  #-------Tarkastellaan vielä käyttäjien saamaa huomiota---------
+  
+  
+  
+  #Eli tänne seuraavaksi kuinka paljon käyttäjät saavat keskimäärin ääniä ja kommennteja julkaisuihin ja kommentteihin
+  
+  #Lasketaan kommenttien ja äänten keskiarvot per julkaisija submissions datasta
+  
+
+sub_auth_com <- submissions %>%
+    filter(complete.cases(num_comments)) %>%
+    group_by(author) %>%
+    summarize(comments = mean(num_comments))
+  
+sub_auth_ups<-submissions %>%
+  filter(complete.cases(score)) %>%
+  group_by(author) %>%
+  summarize(upvotes = mean(score))
+  
+  
+  
+  #Lasketaan näillekin kaikki tunnusluvut
+
+#äänille
+  
+  mean(sub_auth_ups$upvotes)
+  median(sub_auth_ups$upvotes)
+  p90_auth_ups<-quantile(sub_auth_ups$upvotes, 0.9)
+  sd(sub_auth_ups$upvotes)
+  
+  
+  #lasketaan kuinka suuren osan äänistä  korkein 10% käyttäjistä on saanut
+  sum(sub_auth_ups$upvotes)
+  sum(sub_auth_ups$upvotes[sub_auth_ups$upvotes >= p90_auth_ups])
+  # 91% äänistä
+  
+  
+  #Ja samat kommenteille: 
+  
+  mean(sub_auth_com$comments)
+  median(sub_auth_com$comments)
+  p90_auth_com<-quantile(sub_auth_com$comments, 0.9)
+  sd(sub_auth_com$comments)
+  
+  
+  #lasketaan kuinka suuren osan äänistä  korkein 10% käyttäjistä on saanut
+  sum(sub_auth_com$comments)
+  sum(sub_auth_com$comments[sub_auth_com$comments >= p90_auth_com])
+  # 65% kommenteista
+  
+  #Tehdään näistäkin kuvaajat
+  
+  
+  #Visualisoidaan äänten jakauma (log)
+  
+  
+  ggplot(data = sub_auth_ups, aes(x = upvotes)) +
+    geom_bar(fill = "steelblue", color = "black") +  
+    scale_x_continuous(breaks = seq(0, max(sub_auth_ups$upvotes), by = 5000)) +  
+    scale_y_continuous(labels = scales::comma, trans = "log10") +  
+    labs(x = "Number of Votes", y = "Count (log scale)")
+  
+  
+  #log log
+  
+  ggplot(data = sub_auth_ups, aes(x = upvotes)) +
+    geom_bar(fill = "steelblue", color = "black") +
+    scale_x_continuous(labels = scales::comma, trans = "log10") +
+    scale_y_continuous(labels = scales::comma, trans = "log10") +
+    labs(x = "Number of ups (log scale)", y = "Count (log scale)")
+  
+  
+#Visualisoidaan kommenttien jakaumaa (log)
+  
+  ggplot(data = sub_auth_com, aes(x = comments)) +
+    geom_bar(fill = "steelblue", color = "black") +  
+    scale_x_continuous(breaks = seq(0, max(sub_auth_com$comments), by = 5000)) +  
+    scale_y_continuous(labels = scales::comma, trans = "log10") +  
+    labs(x = "Number of Comments", y = "Count (log scale)")
+  
+  #log log
+  
+  ggplot(data = sub_auth_com, aes(x = comments)) +
+    geom_bar(fill = "steelblue", color = "black") +
+    scale_x_continuous(labels = scales::comma, trans = "log10") +
+    scale_y_continuous(labels = scales::comma, trans = "log10") +
+    labs(x = "Number of comments (log scale)", y = "Count (log scale)")
+
+  
+  
+  #Voisi vielä katsoa, kuinka kommenttien saama äänimäärä jakautuu kommentoijien välillä
+  #jätetään negatiiviset pois suhdelukujen laskemiseksi
+  
+  comups<-subset(comments, ups>=0 )
+  
+  com_auth_ups <- comups %>%
+    filter(complete.cases(ups)) %>%
+    group_by(author) %>%
+    summarize(ups = mean(ups))
+  
+  mean(com_auth_ups$ups)
+  median(com_auth_ups$ups)
+  p90_comauth_ups<-quantile(com_auth_ups$ups, 0.9)
+  sd(com_auth_ups$ups)
+  
+  
+  #lasketaan kuinka suuren osan äänistä  korkein 10% käyttäjistä on saanut
+  sum(com_auth_ups$ups)
+  sum(com_auth_ups$ups[com_auth_ups$ups >= p90_comauth_ups])
+  # 95% äänistä
+  
+  ggplot(data = com_auth_ups, aes(x = ups)) +
+    geom_bar(fill = "steelblue", color = "black") +  
+    scale_x_continuous(breaks = seq(0, max(com_auth_ups$ups), by = 5000)) +  
+    scale_y_continuous(labels = scales::comma, trans = "log10") +  
+    labs(x = "Number of Votes", y = "Count (log scale)")
+  
+
+  
+  
+  #Jees eli ihan saman näköistä kuin muutkin jakaumat.
+  
+ 
