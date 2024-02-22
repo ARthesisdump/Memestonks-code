@@ -1,0 +1,97 @@
+#Flair analyysi
+
+#ladataan tarvittavat paketit
+library(tidyverse)
+library(readr)
+
+
+
+#Importataan csv. muotoinen data tietokoneelta. Kommentit ja julkaisut erikseen ja käyttäjädatat molemmista erikseen.
+
+submissions<-read_csv("C:/Users/akmira/Desktop/Gradu/Memestonks projekti/Data/Final data/meme_submissions.csv")
+
+
+#Rajataan koskemaan vain lokakuu - tammikuu aikaa datassa helmikuussa tapahtuvan muutoksen vuoksi
+
+submissions$created <- as.Date(submissions$created)
+
+submissions <- submissions %>%
+  filter(created >= as.Date("2022-10-11") & created <= as.Date("2023-01-31"))
+
+
+#Poistetaan turhat
+
+submissions <- subset(submissions,selftext !="[removed]")
+submissions <- subset(submissions,author !="AutoModerator")
+submissions <- subset(submissions,author !="VisualMod")
+submissions <- subset(submissions,author !="[deleted]")
+submissions <- subset(submissions,author !="OPINION_IS_UNPOPULAR")
+
+submissions <- subset(submissions,id !="1035100")
+
+
+#Lasketaan julkaisut per flairi
+
+flair_count <- submissions %>%
+  group_by(flair) %>%
+  summarize(submissions = n())
+
+
+#Lasketaan ups ja comments keskiarvot ja mediaanit
+
+overall_stats <- submissions %>%
+  summarise(
+    avg_ups = mean(score, na.rm = TRUE),
+    median_ups = median(score, na.rm = TRUE),
+    avg_comments = mean(num_comments, na.rm = TRUE),
+    median_comments = median(num_comments, na.rm = TRUE)
+  )
+
+
+
+
+#Lasketaan keskiarvot äänille ja kommenteille flairin mukaan
+
+#poistetaan ensin scientific notation -formaatti käytöstä, jotta tulokset tulevat kokonaislukuina
+options(scipen = 999)
+
+flair_stats <- submissions %>%
+  group_by(flair) %>%
+  summarise(
+    avg_ups = mean(score, na.rm = TRUE),
+    median_ups = median(score, na.rm = TRUE),
+    avg_comments = mean(num_comments, na.rm = TRUE),
+    median_comments = median(num_comments, na.rm = TRUE)
+  )
+
+
+
+#Yhdistetään flair stats ja overall stats
+
+overall_stats$flair <- "Yhteensä"
+
+flair_stats$group <- "Flair-Specific"
+overall_stats$group <- "Overall"
+
+combined_stats <- bind_rows(flair_stats, overall_stats)
+
+
+
+#Visualisoidaan
+
+ggplot(submissions, aes(x = flair, y = score)) +
+  geom_boxplot() +
+  ylim(0, 200) +
+  labs(title = "Box Plot of Ups by Flair",x="Flair",y="Number of Votes")+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+ggplot(submissions, aes(x = flair, y = num_comments)) +
+  geom_boxplot() +
+  ylim(0, 200) +
+  labs(title = "Box Plot of comments by Flair", x="Flair", y="Number of Comments")+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+
+
+
+
