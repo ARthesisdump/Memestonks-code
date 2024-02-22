@@ -7,17 +7,14 @@ library(car)
 
 #Importataan tarvittava data tietokoneelta. Kommentit ja julkaisut erikseen ja käyttäjädatat molemmista erikseen.
 
-submissions<-read_csv("C:/Users/Aki/Desktop/Gradu/Memestonks projekti/Data/Final data/meme_submissions.csv")
+submissions<-read_csv("C:/Users//Desktop/Memestonks/Data/Final data/meme_submissions.csv")
 
-comments<-read_csv("C:/Users/akmira/Desktop/Memestonks/Data/Final data/meme_comments.csv")
+comments<-read_csv("C:/Users//Desktop/Memestonks/Data/Final data/meme_comments.csv")
 
 
-sub_author_data<-read_csv("C:/Users/Aki/Desktop/Gradu/Memestonks projekti/Data/Final data/meme_submission_authors.csv")
+sub_author_data<-read_csv("C:/Users//Desktop/Memestonks/Data/Final data/meme_submission_authors.csv")
 
-com_author_data<-read_csv("C:/Users/akmira/Desktop//Memestonks/Data/Final data/meme_comment_authors.csv")
-
-keskeisyys <- read_csv("C:/Users/akmira/Desktop/Memestonks/Data/centrality.csv")
-
+com_author_data<-read_csv("C:/Users//Desktop/Memestonks/Data/Final data/meme_comment_authors.csv")
 
 
 #Rajataan koskemaan vain lokakuu - tammikuu aikaa datassa helmikuussa tapahtuvan muutoksen vuoksi
@@ -47,46 +44,61 @@ submissions <- subset(submissions,author !="AutoModerator")
 submissions <- subset(submissions,author !="VisualMod")
 submissions <- subset(submissions,author !="[deleted]")
 submissions <- subset(submissions,author !="OPINION_IS_UNPOPULAR")
-submissions <- subset(submissions,id !="1035100")
 
-com_author_data <- subset(com_author_data, id != "[deleted]")
-com_author_data <- subset(com_author_data, name != "AutoModerator")
-com_author_data <- subset(com_author_data, name != "VisualMod")
-
-comments <- subset(comments,body!="[removed]")
-comments <- subset(comments,author!="AutoModerator")
-comments <- subset(comments,author!="VisualMod")
-comments <- subset(comments,author!="[deleted]")
 
 #Okei näyttää ihan hyvältä.
-#Poistetaan com_author_datasta ylimääräiset havainnot id avulla. Eli yritetään saada com author data ja comments data täsmäämään.
+#Poistetaan sub_author_datasta ylimääräiset havainnot id avulla. Eli yritetään saada sub author data ja submission data täsmäämään.
 
 #yhdistetään datasetit analyysiä varten
 
 
-merged_data <- merge(comments, com_author_data, by.x = "author", by.y = "name", all.x = TRUE)
-
-merged_data <- merge(merged_data, keskeisyys, by.x = "author", by.y = "Label", all.x = TRUE)
-
+merged_data <- merge(submissions, sub_author_data, by.x = "author", by.y = "name", all.x = TRUE)
 
 #Tehdään logaritmimuunnos
 #Tämä pudottaa negatiiviset arvot pois aineistosta. Jos aiheuttaa ongelmia regressioanalyysissa, voisi muuttaa negatiiviset nollaksi?
 
 
-
-
-
 cleaned_data <- merged_data %>%
   filter(!is.na(total_karma) & total_karma >= 0 &
            !is.na(score) & score >= 0 &
-           !is.na (indegree) & indegree >= 0) %>%
+           !is.na(num_comments) & num_comments >= 0)%>%
+  
+  
   mutate(
     log_total_karma = log(total_karma + 1),  
     log_ups = log(score + 1),
-    log_indegree = log(indegree + 1)
+    log_num_comments = log(num_comments + 1)
   )
 
 
+
+#Tarkastellaan karman jakaumaa, sekä karman ja upsien yhteyttä hajontakuviolla
+
+
+ggplot(data = cleaned_data, aes(x = log_ups)) +
+  geom_bar(fill = "steelblue", color = "black") 
+
+
+
+ggplot(data = cleaned_data, aes(x = log_total_karma)) +
+  geom_bar(fill = "steelblue", color = "black") 
+
+
+
+ggplot(data = cleaned_data, aes(x = score)) +
+  geom_bar(fill = "steelblue", color = "black") 
+
+
+ggplot(data = cleaned_data, aes(x = log_ups)) +
+  geom_bar(fill = "steelblue", color = "black") 
+
+
+
+ggplot(cleaned_data, aes(x = log_total_karma, y = log_ups)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE) +  # Add linear trend line without confidence interval
+  labs(x = "Karma", y = "Ups") +
+  ggtitle("Scatterplot: Karma vs. Ups")
 
 
 
@@ -112,21 +124,58 @@ cleaned_data <- cleaned_data %>%
   select(-trophy_id)
 
 
-#Tarkastellaan muuttujien välisiä yhteyksiä
+#tehdään jakauma- ja hajontakuvio
+
+ggplot(data = cleaned_data, aes(x = trophies)) +
+  geom_bar(fill = "steelblue", color = "black") 
 
 
-spearman_corr_degree1 <-  cor(cleaned_data$indegree, cleaned_data$score, method="spearman", use ="complete.obs")
-
-spearman_corr_degree2 <-  cor(cleaned_data$trophies, cleaned_data$score, method="spearman", use ="complete.obs")
-
-
-#tehdään kuvaajat
-
-ggplot(cleaned_data, aes(x = log_total_karma, y = log_ups)) +
+ggplot(cleaned_data, aes(x = trophies, y = log_ups)) +
   geom_point() +
-  geom_smooth(method = "lm", se = FALSE) +  # Add linear trend line without confidence interval
-  labs(x = "Karma", y = "Ups") +
-  ggtitle("Scatterplot: Karma vs. Ups")
+  labs(x = "Trophies", y = "Ups") +
+  ggtitle("Scatterplot: Trophies vs. Ups")
+
+
+
+#Tuodaan mukaan keskeisyysasteet
+
+keskeisyys <- read_csv("C:/Users/akmira/Desktop/Memestonks/Data/centrality.csv")
+
+cleaned_data <- merge(cleaned_data, keskeisyys, by.x = "author", by.y = "Label", all.x = TRUE)
+
+
+
+#tarkastellaan indegree centralityn jakaumaa
+
+ggplot(data = cleaned_data, aes(x = indegree)) +
+  geom_bar(fill = "steelblue", color = "black") 
+
+
+
+#tosi vino, tehdään sillekin logaritmimuunnos
+
+
+
+
+cleaned_data <- cleaned_data %>%
+  filter(!is.na(indegree) & indegree >= 0)%>%
+  
+  
+  mutate(
+    log_indegree = log(indegree + 1)
+  )
+
+
+ggplot(data = cleaned_data3, aes(x = log_indegree)) +
+  geom_bar(fill = "steelblue", color = "black") 
+
+
+
+
+#parempi, vaikka vieläkin vino
+
+
+#tehdään hajontakuvio
 
 
 ggplot(cleaned_data, aes(x = log_indegree, y = log_ups)) +
@@ -136,23 +185,37 @@ ggplot(cleaned_data, aes(x = log_indegree, y = log_ups)) +
   ggtitle("Scatterplot: Indegree vs. Ups")
 
 
-ggplot(cleaned_data, aes(x = trophies, y = log_ups)) +
-  geom_point() +
-  geom_smooth(method = "lm", se = FALSE) +  # Add linear trend line without confidence interval
-  labs(x = "Trophies", y = "Ups") +
-  ggtitle("Scatterplot: Trophies vs. Ups")
+
+
+#Tuodaan malliin mukaan flairit
+
+cleaned_data$flair <- as.factor(ifelse(is.na(cleaned_data$flair), "NA", as.character(cleaned_data$flair)))
+cleaned_data$flair <- relevel(as.factor(cleaned_data$flair), ref = "NA")
 
 
 
+#tehdään regressiomalleja
 
-#tehdään regressiomallit
+model_ups <- lm(log_ups ~ log_total_karma, data = cleaned_data)
+summary(model_ups)
 
-model_com_ups <- lm(log_ups ~ log_total_karma, data = cleaned_data)
-summary(model_com_ups)
 
 # Calculate BIC and AIC
-bic_value <- BIC(model_com_ups)
-aic_value <- AIC(model_com_ups)
+bic_value <- BIC(model_ups)
+aic_value <- AIC(model_ups)
+
+# Print BIC and AIC values
+cat("BIC:", bic_value, "\n")
+cat("AIC:", aic_value, "\n")
+
+
+
+model_ups2 <- lm(log_ups ~ log_total_karma + trophies, data = cleaned_data)
+summary(model_ups2)
+
+# Calculate BIC and AIC
+bic_value <- BIC(model_ups2)
+aic_value <- AIC(model_ups2)
 
 # Print BIC and AIC values
 cat("BIC:", bic_value, "\n")
@@ -161,24 +224,35 @@ cat("AIC:", aic_value, "\n")
 
 
 
-model_com_ups2 <- lm(log_ups ~ log_total_karma + trophies, data = cleaned_data)
-summary(model_com_ups2)
+model_ups3 <- lm(log_ups ~ log_total_karma+trophies + log_indegree, data = cleaned_data3)
+summary(model_ups3)
+
+
+model_upsx <- lm(log_ups ~ log_total_karma+trophies + log_indegree, data = cleaned_data2)
+summary(model_upsx)
+
+
 
 # Calculate BIC and AIC
-bic_value <- BIC(model_com_ups2)
-aic_value <- AIC(model_com_ups2)
+bic_value <- BIC(model_ups4)
+aic_value <- AIC(model_ups4)
 
 # Print BIC and AIC values
 cat("BIC:", bic_value, "\n")
 cat("AIC:", aic_value, "\n")
 
 
-model_com_ups3 <- lm(log_ups ~ log_total_karma + trophies + log_indegree, data = cleaned_data)
-summary(model_com_ups3)
+
+
+
+model_ups4 <- lm(log_ups ~ log_total_karma + trophies + log_indegree + flair, data = cleaned_data3)
+summary(model_ups4)
+
+
 
 # Calculate BIC and AIC
-bic_value <- BIC(model_com_ups3)
-aic_value <- AIC(model_com_ups3)
+bic_value <- BIC(model_ups4)
+aic_value <- AIC(model_ups4)
 
 # Print BIC and AIC values
 cat("BIC:", bic_value, "\n")
@@ -188,16 +262,35 @@ cat("AIC:", aic_value, "\n")
 
 par(mfrow = c(2, 2))
 
-plot(model_com_ups3)
+plot(model_ups4)
+
+
+#Indegree ihan hyödytön. testataan ilman
+
+model_ups5 <- lm(log_ups ~ log_total_karma+trophies + flair, data = cleaned_data)
+summary(model_ups5)
+
+# Calculate BIC and AIC
+bic_value <- BIC(model_ups5)
+aic_value <- AIC(model_ups5)
+
+# Print BIC and AIC values
+cat("BIC:", bic_value, "\n")
+cat("AIC:", aic_value, "\n")
+
+#indegree näyttäisi parantavan mallia, vaikka ei olekaan tilastollisesti merkitsevä
+
 
 
 
 #Testataan vielä mallien hyvyyttä jollain testeillä
 
+
+
 # Test for linearity in the log_comments relationship
-linearHypothesis(model_com_ups3, c("log_total_karma = 0"))
-linearHypothesis(model_com_ups3, c("trophies = 0"))
-linearHypothesis(model_com_ups3, c("log_indegree = 0"))
+linearHypothesis(model_ups4, c("log_total_karma = 0"))
+linearHypothesis(model_ups4, c("trophies = 0"))
+linearHypothesis(model_ups3, c("log_indegree = 0"))
 
 #muut menee läpi paitsi indegree. Epälineaarinen malli voisi auttaa
 
@@ -206,27 +299,23 @@ linearHypothesis(model_com_ups3, c("log_indegree = 0"))
 #Testataan lopullisen mallin residuaalien normaalisuusolettamaa Shapiro Wilk testillä
 
 
-shapiro_test <- shapiro.test(resid(model_com_ups3))
+shapiro_test <- shapiro.test(resid(model_ups4))
 
 # Print the test result
 print(shapiro_test)
-
-#Liian iso otoskoko, ei pysty tekemään testiä
-
 
 #Tehdään myös White test residuaalien homoskedastisuuden testaamiseksi
 
 install.packages("lmtest")
 library(lmtest)
 
-white_test <- bptest(model_com_ups3)
+white_test <- bptest(model_ups4)
 
 # Print the test result
 print(white_test)
 
 
-#White test ei mene läpi, mutta koska otoskoko on niin iso, se ei haittaa
-
+#testit eivät mene läpi, mutta koska otoskoko on niin iso, se ei haittaa
 
 
 
