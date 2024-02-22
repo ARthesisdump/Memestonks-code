@@ -12,16 +12,16 @@ library(car)
 
 #Importataan tarvittava data tietokoneelta. Kommentit ja julkaisut erikseen ja käyttäjädatat molemmista erikseen.
 
-submissions<-read_csv("C:/Users/akmira/Desktop/Memestonks/Data/Final data/meme_submissions.csv")
+submissions<-read_csv("C:/Users//Desktop/Memestonks/Data/Final data/meme_submissions.csv")
 
-comments<-read_csv("C:/Users/akmira/Desktop/Memestonks/Data/Final data/meme_comments.csv")
+comments<-read_csv("C:/Users//Desktop/Memestonks/Data/Final data/meme_comments.csv")
 
 
-sub_author_data<-read_csv("C:/Users/akmira/Desktop/Memestonks/Data/Final data/meme_submission_authors.csv")
+sub_author_data<-read_csv("C:/Users//Desktop/Memestonks/Data/Final data/meme_submission_authors.csv")
 
-com_author_data<-read_csv("C:/Users/akmira/Desktop/Memestonks/Data/Final data/meme_comment_authors.csv")
+com_author_data<-read_csv("C:/Users//Desktop/Memestonks/Data/Final data/meme_comment_authors.csv")
 
-keskeisyys <- read_csv("C:/Users/akmira/Desktop/Memestonks/Data/centrality.csv")
+keskeisyys <- read_csv("C:/Users//Desktop/Memestonks/Data/centrality.csv")
 
 
 #Rajataan koskemaan vain lokakuu - tammikuu aikaa datassa helmikuussa tapahtuvan muutoksen vuoksi
