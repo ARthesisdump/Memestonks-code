@@ -1,0 +1,233 @@
+#ladataan tarvittavat paketit
+library(tidyverse)
+library(readr)
+library(poweRlaw)
+library(car)
+
+
+#Importataan tarvittava data tietokoneelta. Kommentit ja julkaisut erikseen ja käyttäjädatat molemmista erikseen.
+
+submissions<-read_csv("C:/Users/Aki/Desktop/Gradu/Memestonks projekti/Data/Final data/meme_submissions.csv")
+
+comments<-read_csv("C:/Users/akmira/Desktop/Memestonks/Data/Final data/meme_comments.csv")
+
+
+sub_author_data<-read_csv("C:/Users/Aki/Desktop/Gradu/Memestonks projekti/Data/Final data/meme_submission_authors.csv")
+
+com_author_data<-read_csv("C:/Users/akmira/Desktop//Memestonks/Data/Final data/meme_comment_authors.csv")
+
+keskeisyys <- read_csv("C:/Users/akmira/Desktop/Memestonks/Data/centrality.csv")
+
+
+
+#Rajataan koskemaan vain lokakuu - tammikuu aikaa datassa helmikuussa tapahtuvan muutoksen vuoksi
+
+submissions$created <- as.Date(submissions$created)
+
+submissions <- submissions %>%
+  filter(created >= as.Date("2022-10-11") & created <= as.Date("2023-01-31"))
+
+
+comments$created <- as.Date(comments$created)
+
+comments <- comments %>%
+  filter(created >= as.Date("2022-10-11") & created <= as.Date("2023-01-31"))
+
+
+#datan joukossa paljon poistettuja käyttäjiä ja julkaisuja, sekä botteja. Poistetaan näitä.
+
+sub_author_data <- subset(sub_author_data, name != "[deleted]")
+sub_author_data <- subset(sub_author_data, name != "AutoModerator")
+sub_author_data <- subset(sub_author_data, name != "VisualMod")
+sub_author_data <- subset(sub_author_data, name != "OPINION_IS_UNPOPULAR")
+
+
+submissions <- subset(submissions,selftext !="[removed]")
+submissions <- subset(submissions,author !="AutoModerator")
+submissions <- subset(submissions,author !="VisualMod")
+submissions <- subset(submissions,author !="[deleted]")
+submissions <- subset(submissions,author !="OPINION_IS_UNPOPULAR")
+submissions <- subset(submissions,id !="1035100")
+
+com_author_data <- subset(com_author_data, id != "[deleted]")
+com_author_data <- subset(com_author_data, name != "AutoModerator")
+com_author_data <- subset(com_author_data, name != "VisualMod")
+
+comments <- subset(comments,body!="[removed]")
+comments <- subset(comments,author!="AutoModerator")
+comments <- subset(comments,author!="VisualMod")
+comments <- subset(comments,author!="[deleted]")
+
+#Okei näyttää ihan hyvältä.
+#Poistetaan com_author_datasta ylimääräiset havainnot id avulla. Eli yritetään saada com author data ja comments data täsmäämään.
+
+#yhdistetään datasetit analyysiä varten
+
+
+merged_data <- merge(comments, com_author_data, by.x = "author", by.y = "name", all.x = TRUE)
+
+merged_data <- merge(merged_data, keskeisyys, by.x = "author", by.y = "Label", all.x = TRUE)
+
+
+#Tehdään logaritmimuunnos
+#Tämä pudottaa negatiiviset arvot pois aineistosta. Jos aiheuttaa ongelmia regressioanalyysissa, voisi muuttaa negatiiviset nollaksi?
+
+
+
+
+
+cleaned_data <- merged_data %>%
+  filter(!is.na(total_karma) & total_karma >= 0 &
+           !is.na(score) & score >= 0 &
+           !is.na (indegree) & indegree >= 0) %>%
+  mutate(
+    log_total_karma = log(total_karma + 1),  
+    log_ups = log(score + 1),
+    log_indegree = log(indegree + 1)
+  )
+
+
+
+
+
+#Tuodaan mukaan trophyt
+
+author_trophies<-read_csv("C:/Users/akmira/Desktop/Memestonks/Data/Final data/meme_submission_author_trophies.csv")
+
+#lasketaan trophyjen määrä per henkilö
+
+trophy_count <- author_trophies %>%
+  group_by(redditor_id) %>%
+  summarize(trophy_id = n())
+
+#yhdistetään datasetit analyysiä varten
+
+
+cleaned_data <- merge(cleaned_data, trophy_count, by.x = "id.y", by.y = "redditor_id", all.x = TRUE)
+
+#Lisätään trophy muuttujaan puuttuvien tilalle nolla ja muutetaan sen nimi paremmaksi
+
+cleaned_data <- cleaned_data %>%
+  mutate(trophies = ifelse(is.na(trophy_id), 0, trophy_id))%>%
+  select(-trophy_id)
+
+
+#Tarkastellaan muuttujien välisiä yhteyksiä
+
+
+spearman_corr_degree1 <-  cor(cleaned_data$indegree, cleaned_data$score, method="spearman", use ="complete.obs")
+
+spearman_corr_degree2 <-  cor(cleaned_data$trophies, cleaned_data$score, method="spearman", use ="complete.obs")
+
+
+#tehdään kuvaajat
+
+ggplot(cleaned_data, aes(x = log_total_karma, y = log_ups)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE) +  # Add linear trend line without confidence interval
+  labs(x = "Karma", y = "Ups") +
+  ggtitle("Scatterplot: Karma vs. Ups")
+
+
+ggplot(cleaned_data, aes(x = log_indegree, y = log_ups)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE) +  # Add linear trend line without confidence interval
+  labs(x = "Indegree", y = "Ups") +
+  ggtitle("Scatterplot: Indegree vs. Ups")
+
+
+ggplot(cleaned_data, aes(x = trophies, y = log_ups)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE) +  # Add linear trend line without confidence interval
+  labs(x = "Trophies", y = "Ups") +
+  ggtitle("Scatterplot: Trophies vs. Ups")
+
+
+
+
+#tehdään regressiomallit
+
+model_com_ups <- lm(log_ups ~ log_total_karma, data = cleaned_data)
+summary(model_com_ups)
+
+# Calculate BIC and AIC
+bic_value <- BIC(model_com_ups)
+aic_value <- AIC(model_com_ups)
+
+# Print BIC and AIC values
+cat("BIC:", bic_value, "\n")
+cat("AIC:", aic_value, "\n")
+
+
+
+
+model_com_ups2 <- lm(log_ups ~ log_total_karma + trophies, data = cleaned_data)
+summary(model_com_ups2)
+
+# Calculate BIC and AIC
+bic_value <- BIC(model_com_ups2)
+aic_value <- AIC(model_com_ups2)
+
+# Print BIC and AIC values
+cat("BIC:", bic_value, "\n")
+cat("AIC:", aic_value, "\n")
+
+
+model_com_ups3 <- lm(log_ups ~ log_total_karma + trophies + log_indegree, data = cleaned_data)
+summary(model_com_ups3)
+
+# Calculate BIC and AIC
+bic_value <- BIC(model_com_ups3)
+aic_value <- AIC(model_com_ups3)
+
+# Print BIC and AIC values
+cat("BIC:", bic_value, "\n")
+cat("AIC:", aic_value, "\n")
+
+
+
+par(mfrow = c(2, 2))
+
+plot(model_com_ups3)
+
+
+
+#Testataan vielä mallien hyvyyttä jollain testeillä
+
+# Test for linearity in the log_comments relationship
+linearHypothesis(model_com_ups3, c("log_total_karma = 0"))
+linearHypothesis(model_com_ups3, c("trophies = 0"))
+linearHypothesis(model_com_ups3, c("log_indegree = 0"))
+
+#muut menee läpi paitsi indegree. Epälineaarinen malli voisi auttaa
+
+
+
+#Testataan lopullisen mallin residuaalien normaalisuusolettamaa Shapiro Wilk testillä
+
+
+shapiro_test <- shapiro.test(resid(model_com_ups3))
+
+# Print the test result
+print(shapiro_test)
+
+#Liian iso otoskoko, ei pysty tekemään testiä
+
+
+#Tehdään myös White test residuaalien homoskedastisuuden testaamiseksi
+
+install.packages("lmtest")
+library(lmtest)
+
+white_test <- bptest(model_com_ups3)
+
+# Print the test result
+print(white_test)
+
+
+#White test ei mene läpi, mutta koska otoskoko on niin iso, se ei haittaa
+
+
+
+
+
